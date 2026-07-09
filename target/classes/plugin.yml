@@ -1,0 +1,5 @@
+name: SimpleVote
+version: 1.0
+main: com.simplevote.SimpleVotePlugin
+api-version: 1.20
+description: Plugin penjembatan antara server Minecraft dan SimpleVote Cloud API.

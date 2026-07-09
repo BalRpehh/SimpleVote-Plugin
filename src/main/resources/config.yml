@@ -1,0 +1,6 @@
+# ==========================================
+# Konfigurasi SimpleVote Plugin
+# ==========================================
+
+# Masukkan API Key dari Web Dashboard di sini
+api-key: "ISI_API_KEY_KAMU_DISINI"
