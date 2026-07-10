@@ -11,11 +11,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public class SimpleVotePlugin extends JavaPlugin {
-    
-    // URL API resmi yang sudah diproteksi Cloudflare dan diarahkan otomatis ke port 3000
+
+    // URL API resmi yang mengarah ke backend Node.js via Cloudflare
     private static final String API_URL = "https://api.iqbalafkbot.my.id";
     
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newHttpClient();    
     private final Gson gson = new Gson();
     private String apiKey;
 
@@ -23,9 +23,9 @@ public class SimpleVotePlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         
-        // Membaca API Key dari config.yml milik pembeli/user
+        // Membaca API Key (License) dari config.yml milik pembeli
         this.apiKey = getConfig().getString("api-key");
-
+        
         if (apiKey == null || apiKey.equals("ISI_API_KEY_KAMU_DISINI")) {
             getLogger().warning("========================================");
             getLogger().warning(" API Key belum diisi! Plugin berhenti.");
@@ -36,13 +36,14 @@ public class SimpleVotePlugin extends JavaPlugin {
 
         getLogger().info("SimpleVote menyala!");
         getLogger().info("Terhubung ke server pusat: " + API_URL);
-
+        
         // Menjalankan pengecekan antrean vote setiap 30 detik (600 tick) secara Async
         getServer().getScheduler().runTaskTimerAsynchronously(this, this::checkQueue, 100L, 600L);
     }
 
     private void checkQueue() {
         try {
+            // Menembak endpoint premium dengan menyertakan x-api-key di Header
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL + "/api/plugin/queue"))
                     .header("x-api-key", apiKey)
@@ -51,26 +52,41 @@ public class SimpleVotePlugin extends JavaPlugin {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
+            // Jika API Key valid dan server merespon 200 OK
             if (response.statusCode() == 200) {
                 JsonArray queue = gson.fromJson(response.body(), JsonArray.class);
                 
                 for (int i = 0; i < queue.size(); i++) {
-                    JsonObject vote = queue.get(i).getAsJsonObject();
+                    JsonObject vote = queue.get(i).getAsJsonObject();                    
                     String username = vote.get("username").getAsString();
-                    String commandTemplate = vote.get("command").getAsString();
+                    
+                    // Mengambil perintah yang SUDAH di-replace otomatis oleh Backend Node.js
+                    String finalCommand = vote.get("command").getAsString();
 
-                    // Mengganti placeholder {player} dengan nama asli pemenang vote
-                    String finalCommand = commandTemplate.replace("{player}", username);
-
-                    // Mengeksekusi command di thread utama Minecraft (Console Sender)
+                    // Mengeksekusi command langsung di thread utama Minecraft (Console Sender)
                     getServer().getScheduler().runTask(this, () -> {
                         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCommand);
                         getLogger().info("VOTE MASUK! Memberikan hadiah ke: " + username);
                     });
                 }
+            } else if (response.statusCode() == 403 || response.statusCode() == 401) {
+                getLogger().severe("========================================");
+                getLogger().severe(" API KEY / LISENSI SIMPLEVOTE INVALID! ");
+                getLogger().severe(" Plugin otomatis dimatikan oleh server pusat.");
+                getLogger().severe("========================================");
+                
+                // Matikan plugin di thread utama jika lisensi terdeteksi ilegal/expired
+                getServer().getScheduler().runTask(this, () -> {
+                    getServer().getPluginManager().disablePlugin(this);
+                });
             }
         } catch (Exception e) {
             getLogger().warning("Gagal terhubung ke API: " + e.getMessage());
         }
+    }
+
+    @Override
+    public void onDisable() {
+        getLogger().info("SimpleVote dimatikan.");
     }
 }
